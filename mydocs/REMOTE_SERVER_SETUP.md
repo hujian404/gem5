@@ -154,3 +154,43 @@ remote:  origin  = git@github.com:hujian404/gem5.git   (the fork)
 
 Recorded here for reproducibility; verify on a fresh clone with
 `git log -1 --oneline`.
+
+---
+
+## 6. Directory layout on the reference server
+
+The gem5 source and all Garnet experiment outputs are consolidated under a
+single `~/work/gem5-garnet/` root:
+
+```
+~/work/gem5-garnet/                              # unified experiment root
+├── gem5/                                        # gem5 source (branch stable)
+│   ├── build/Garnet_standalone/gem5.opt        #   built binary (~823 MB, gem5 25.1.0.1)
+│   ├── build/ALL/gem5.opt                      #   comprehensive binary (~11 GB, optional)
+│   ├── configs/example/garnet_synth_traffic.py
+│   ├── src/mem/ruby/network/garnet/
+│   └── mydocs/                                 #   this documentation
+├── results/                                     # experiment run outputs
+│   ├── uniform_random_1M_inj0.1/               #   1M cycles, inj=0.1
+│   ├── tornado_1M_inj0.1/
+│   ├── bit_complement_1M_inj0.1/
+│   └── smoke_10k_inj0.1/                       #   10K cycles smoke test
+├── logs/                                        # build logs
+│   ├── gem5-build-all.log                      #   ALL build log
+│   └── gem5-build-all.pid
+├── build-log.txt                               # Garnet_standalone build log
+└── build-log.pid
+```
+
+**To connect to the reference server** (from the local Windows machine):
+
+```bash
+ssh <user>@<remote-host>
+# or, with ~/.ssh/config entry:
+ssh <host-alias>
+```
+
+Once logged in, the gem5 repo is at `~/work/gem5-garnet/gem5`, results are at
+`~/work/gem5-garnet/results/`, and build logs are at `~/work/gem5-garnet/logs/`.
+All build/run commands in [BUILD_AND_RUN_GEM5.md](BUILD_AND_RUN_GEM5.md) and
+[TEST_RESULTS.md](TEST_RESULTS.md) use these paths.

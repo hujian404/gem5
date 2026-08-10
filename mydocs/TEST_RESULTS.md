@@ -10,7 +10,7 @@ the reference host. The build is covered in
 
 Prerequisites: [REMOTE_SERVER_SETUP.md](REMOTE_SERVER_SETUP.md) and
 [BUILD_AND_RUN_GEM5.md](BUILD_AND_RUN_GEM5.md) must be done (i.e.
-`build/Garnet_standalone/gem5.opt` exists).
+`~/work/gem5-garnet/gem5/build/Garnet_standalone/gem5.opt` exists).
 
 ---
 
@@ -22,12 +22,16 @@ The Garnet synthetic-traffic config must be run with the **single-protocol**
 `ALL` build cannot run the legacy `configs/ruby/` path directly).
 
 ```bash
-cd ~/work/gem5
-build/Garnet_standalone/gem5.opt configs/example/garnet_synth_traffic.py \
+cd ~/work/gem5-garnet/gem5
+export PATH="$HOME/.local/bin:$HOME/.local/opt/scons/usr/bin:$PATH"
+build/Garnet_standalone/gem5.opt \
+  -d ~/work/gem5-garnet/results/uniform_random_1M_inj0.1 \
+  configs/example/garnet_synth_traffic.py \
   --num-cpus=16 --num-dirs=16 \
   --network=garnet --topology=Mesh_XY --mesh-rows=4 \
   --sim-cycles=1000000 --injectionrate=0.1 \
   --synthetic=uniform_random
+# stats → ~/work/gem5-garnet/results/uniform_random_1M_inj0.1/stats.txt
 ```
 
 > **Topology name.** In gem5 v25 the mesh topology module is `Mesh_XY.py`
@@ -38,10 +42,18 @@ build/Garnet_standalone/gem5.opt configs/example/garnet_synth_traffic.py \
 > `MeshDirCorners_XY`, `CustomMesh`, `Crossbar`, `CrossbarGarnet`, `Pt2Pt`,
 > `Cluster`).
 
+> **Output discipline.** Always use `-d ~/work/gem5-garnet/results/<name>` to
+> keep all run outputs under `results/`. Never omit `-d` — that would write to
+> `m5out/` inside the source tree and clutter the repo. The naming convention
+> is `<pattern>_<cycles>cyc_inj<rate>` (e.g. `tornado_1M_inj0.1`).
+
 ### 1.1 Single smoke test
 
 ```bash
-build/Garnet_standalone/gem5.opt -d /tmp/garnet-smoke configs/example/garnet_synth_traffic.py \
+cd ~/work/gem5-garnet/gem5
+build/Garnet_standalone/gem5.opt \
+  -d ~/work/gem5-garnet/results/smoke_10k_inj0.1 \
+  configs/example/garnet_synth_traffic.py \
   --num-cpus=16 --num-dirs=16 --network=garnet --topology=Mesh_XY --mesh-rows=4 \
   --sim-cycles=10000 --injectionrate=0.1 --synthetic=uniform_random
 ```
@@ -49,12 +61,17 @@ build/Garnet_standalone/gem5.opt -d /tmp/garnet-smoke configs/example/garnet_syn
 ### 1.2 Sweep traffic patterns
 
 ```bash
-for pattern in uniform_random tornado bit_complement bit_reverse bit_rotation neighbor shuffle transpose; do
-  build/Garnet_standalone/gem5.opt -d ~/work/garnet-run-$pattern \
+cd ~/work/gem5-garnet/gem5
+for pattern in uniform_random tornado bit_complement bit_reverse bit_rotation \
+               neighbor shuffle transpose; do
+  build/Garnet_standalone/gem5.opt \
+    -d ~/work/gem5-garnet/results/${pattern}_1M_inj0.1 \
     configs/example/garnet_synth_traffic.py \
     --num-cpus=16 --num-dirs=16 --network=garnet --topology=Mesh_XY --mesh-rows=4 \
     --sim-cycles=1000000 --injectionrate=0.1 --synthetic=$pattern
 done
+# view all results
+grep 'average_flit_latency' ~/work/gem5-garnet/results/*/stats.txt
 ```
 
 Statistics are written to `<outdir>/stats.txt` (use `-d <outdir>`); the run
@@ -193,17 +210,28 @@ correct build target / command-line option.
 ## 6. Where things live
 
 ```
-~/work/gem5/                                    # gem5 checkout (branch stable)
-├── SConstruct                                  # build entry (uses PYTHON_CONFIG)
-├── build_opts/Garnet_standalone                # single-protocol preset (for garnet)
-├── build_opts/ALL                              # comprehensive preset (all ISAs + protocols)
-├── build/Garnet_standalone/gem5.opt            # built binary (runs garnet_synth_traffic)
-├── build/ALL/gem5.opt                          # comprehensive binary (optional)
-├── configs/example/garnet_synth_traffic.py     # Garnet synthetic-traffic config
-├── configs/topologies/Mesh_XY.py               # XY-routing mesh topology
-├── src/mem/ruby/network/garnet/                # Garnet NoC model source
-├── mydocs/                                     # this documentation
-└── m5out/ (or -d <dir>)                        # run output (stats.txt, config.ini, ...)
+~/work/gem5-garnet/                              # unified experiment root
+├── gem5/                                        # gem5 checkout (branch stable)
+│   ├── SConstruct                              #   build entry (uses PYTHON_CONFIG)
+│   ├── build_opts/Garnet_standalone            #   single-protocol preset (for garnet)
+│   ├── build_opts/ALL                          #   comprehensive preset (all ISAs + protocols)
+│   ├── build/Garnet_standalone/gem5.opt        #   built binary (~823 MB, gem5 25.1.0.1)
+│   ├── build/ALL/gem5.opt                      #   comprehensive binary (optional, ~11 GB)
+│   ├── configs/example/garnet_synth_traffic.py #   Garnet synthetic-traffic config
+│   ├── configs/topologies/Mesh_XY.py           #   XY-routing mesh topology
+│   ├── src/mem/ruby/network/garnet/            #   Garnet NoC model source
+│   ├── mydocs/                                 #   this documentation
+│   └── m5out/                                  #   (empty — always use -d to redirect)
+├── results/                                     # experiment run outputs
+│   ├── uniform_random_1M_inj0.1/               #   stats.txt + config.ini + stdout.log
+│   ├── tornado_1M_inj0.1/
+│   ├── bit_complement_1M_inj0.1/
+│   └── smoke_10k_inj0.1/
+├── logs/                                        # build logs
+│   ├── gem5-build-all.log                      #   ALL build log
+│   └── gem5-build-all.pid
+├── build-log.txt                               # Garnet_standalone build log
+└── build-log.pid
 
 ~/.local/opt/python3-dev/usr/                   # extracted python3.10-dev headers + .so symlink
 ~/.local/opt/scons/usr/                         # extracted scons 4.0.1

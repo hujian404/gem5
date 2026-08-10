@@ -47,6 +47,24 @@ The workarounds needed to build (`python3-dev` headers, `scons`, the
 **outside** any git repo — they must be re-applied on each fresh host. See
 [BUILD_AND_RUN_GEM5.md §2.2](BUILD_AND_RUN_GEM5.md).
 
+## Directory layout
+
+All gem5 source and Garnet experiment files are consolidated under
+`~/work/gem5-garnet/`:
+
+- **Source**: `~/work/gem5-garnet/gem5/` (gem5 checkout, branch `stable`)
+- **Binary**: `~/work/gem5-garnet/gem5/build/Garnet_standalone/gem5.opt` (~823 MB, gem5 25.1.0.1)
+- **Results**: `~/work/gem5-garnet/results/<pattern>_<cycles>cyc_inj<rate>/`
+- **Build logs**: `~/work/gem5-garnet/build-log.txt` (Garnet_standalone) and `~/work/gem5-garnet/logs/gem5-build-all.log` (ALL)
+
+See [REMOTE_SERVER_SETUP.md §6](REMOTE_SERVER_SETUP.md) for the full directory
+tree, and [BUILD_AND_RUN_GEM5.md §1.1](BUILD_AND_RUN_GEM5.md) for the layout
+after clone + build + run.
+
+> **Output discipline.** All run commands use `-d ~/work/gem5-garnet/results/<name>`
+> to keep results organized and the source tree clean. Never omit `-d` — that
+> would write to `m5out/` inside the source tree.
+
 ## Scope of "gem5 garnet"
 
 The Garnet network is gem5's on-chip network (NoC) model, part of the Ruby

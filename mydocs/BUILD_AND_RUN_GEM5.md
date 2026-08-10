@@ -14,11 +14,14 @@ on a host prepared per [REMOTE_SERVER_SETUP.md](REMOTE_SERVER_SETUP.md).
 gem5 keeps its third-party sources (pybind11, etc.) vendored under `ext/` in
 the repository itself — **no submodules** need initializing.
 
+All gem5 + Garnet experiment files are consolidated under a single
+`~/work/gem5-garnet/` root. Clone the repo directly into that layout:
+
 ```bash
 # remote
-mkdir -p ~/work && cd ~/work
-git clone git@github.com:hujian404/gem5.git gem5
-cd ~/work/gem5
+mkdir -p ~/work/gem5-garnet
+git clone git@github.com:hujian404/gem5.git ~/work/gem5-garnet/gem5
+cd ~/work/gem5-garnet/gem5
 
 # add upstream as read-only remote (the GitHub SSH key has read access to
 # public upstreams even though it can only push to your fork)
@@ -27,6 +30,37 @@ git fetch upstream
 git checkout stable
 git log -1 --oneline     # confirm baseline commit
 ```
+
+### 1.1 Directory layout
+
+After clone + build + run, the `~/work/gem5-garnet/` root looks like:
+
+```
+~/work/gem5-garnet/                              # unified experiment root
+├── gem5/                                        # gem5 source checkout (branch stable)
+│   ├── build/Garnet_standalone/gem5.opt        #   built binary (~823 MB, gem5 25.1.0.1)
+│   ├── build/ALL/gem5.opt                      #   comprehensive binary (optional, ~11 GB)
+│   ├── configs/example/garnet_synth_traffic.py #   Garnet synthetic-traffic config
+│   ├── configs/topologies/Mesh_XY.py           #   XY-routing mesh topology
+│   ├── src/mem/ruby/network/garnet/            #   Garnet NoC model source
+│   └── mydocs/                                 #   this documentation
+├── results/                                     # experiment run outputs (stats.txt per run)
+│   ├── uniform_random_1M_inj0.1/
+│   ├── tornado_1M_inj0.1/
+│   ├── bit_complement_1M_inj0.1/
+│   └── smoke_10k_inj0.1/
+├── logs/                                        # build logs
+│   ├── gem5-build-all.log                      #   ALL build log
+│   └── gem5-build-all.pid
+├── build-log.txt                               # Garnet_standalone build log
+└── build-log.pid
+```
+
+> **Run outputs always go to `~/work/gem5-garnet/results/<name>/`** via the
+> `-d` flag. Never let gem5 write to its default `m5out/` inside the source
+> tree — this keeps the source directory clean and all results in one place.
+> The `results/` naming convention is `<pattern>_<cycles>cyc_inj<rate>`
+> (e.g. `uniform_random_1M_inj0.1`).
 
 ---
 
@@ -177,7 +211,7 @@ uses the legacy `configs/ruby/Garnet_standalone.py` path, which requires a
 **single-protocol** build. Build the dedicated preset:
 
 ```bash
-cd ~/work/gem5
+cd ~/work/gem5-garnet/gem5
 export PATH="$HOME/.local/bin:$HOME/.local/opt/scons/usr/bin:$PATH"
 export PYTHONPATH="$HOME/.local/opt/scons/usr/lib/python3/dist-packages:$PYTHONPATH"
 scons build/Garnet_standalone/gem5.opt -j$(nproc)
@@ -185,8 +219,17 @@ scons build/Garnet_standalone/gem5.opt -j$(nproc)
 
 `build_opts/Garnet_standalone` sets `PROTOCOL="Garnet_standalone"` (single
 protocol), so the SLICC controllers (`L1Cache_Controller`, etc.) are available
-at top level and no `--protocol` flag is needed at run time. On a 112-core host
-this builds in ~5 minutes.
+at top level and no `--protocol` flag is needed at run time.
+
+**Build details captured on the reference host (112 cores, gcc 11.4.0):**
+
+| Item | Value |
+|------|-------|
+| Build time | ~5 minutes (`-j112`) |
+| Binary size | 822,847,600 bytes (~823 MB) |
+| gem5 version | 25.1.0.1 |
+| Compiled | `Aug 10 2026 16:50:13` |
+| Build log | `~/work/gem5-garnet/build-log.txt` |
 
 Expected key configure lines (proving the Python workaround is in effect):
 
@@ -202,7 +245,14 @@ code 0.
 ```bash
 ls -la build/Garnet_standalone/gem5.opt
 build/Garnet_standalone/gem5.opt --build-info | grep -i version
+# → gem5 version 25.1.0.1
 ```
+
+> **Note on scons cache after moving the repo.** If you move the gem5 checkout
+> to a different path, the `.sconsign.dblite` cache may contain stale absolute
+> paths. The already-built `gem5.opt` binary still runs correctly (git repos
+> and binaries are portable), but if you need to **rebuild**, delete the cache
+> first: `rm build/Garnet_standalone/.sconsign.dblite`.
 
 ### 3.2 Optional comprehensive build: `build/ALL/gem5.opt`
 
@@ -216,7 +266,11 @@ binary for Garnet, use the new gem5 standard-library API instead of the legacy
 config. For the classic synthetic-traffic workflow, use §3.1.
 
 ```bash
+cd ~/work/gem5-garnet/gem5
+export PATH="$HOME/.local/bin:$HOME/.local/opt/scons/usr/bin:$PATH"
+export PYTHONPATH="$HOME/.local/opt/scons/usr/lib/python3/dist-packages:$PYTHONPATH"
 scons build/ALL/gem5.opt -j$(nproc)     # ~15 min on a 112-core host
+# build log: ~/work/gem5-garnet/logs/gem5-build-all.log
 ```
 
 ---
@@ -235,17 +289,26 @@ disables HDF5 support, which is fine for Garnet runs).
 ## 5. Run the Garnet synthetic-traffic test
 
 ```bash
-cd ~/work/gem5
-build/Garnet_standalone/gem5.opt configs/example/garnet_synth_traffic.py \
+cd ~/work/gem5-garnet/gem5
+export PATH="$HOME/.local/bin:$HOME/.local/opt/scons/usr/bin:$PATH"
+build/Garnet_standalone/gem5.opt \
+  -d ~/work/gem5-garnet/results/uniform_random_1M_inj0.1 \
+  configs/example/garnet_synth_traffic.py \
   --num-cpus=16 --num-dirs=16 \
   --network=garnet --topology=Mesh_XY --mesh-rows=4 \
   --sim-cycles=1000000 --injectionrate=0.1 \
   --synthetic=uniform_random
+# stats → ~/work/gem5-garnet/results/uniform_random_1M_inj0.1/stats.txt
 ```
 
 > **Topology name.** In gem5 v25 the mesh topology is `Mesh_XY` (file
 > `configs/topologies/Mesh_XY.py`, class `Mesh_XY`), not the legacy `Mesh`.
 > See [TEST_RESULTS.md §4.2](TEST_RESULTS.md).
+
+> **Output discipline.** Always use `-d ~/work/gem5-garnet/results/<name>` to
+> keep all run outputs under `results/`. Never omit `-d` — that would write to
+> `m5out/` inside the source tree and clutter the repo. The naming convention
+> is `<pattern>_<cycles>cyc_inj<rate>` (e.g. `tornado_1M_inj0.1`).
 
 Key options (see `configs/example/garnet_synth_traffic.py`):
 
@@ -268,7 +331,9 @@ results.
 
 ---
 
-## 6. Quick reference — full run from scratch
+## 6. Quick reference
+
+### 6.1 Full setup from scratch (fresh host)
 
 Assuming [REMOTE_SERVER_SETUP.md](REMOTE_SERVER_SETUP.md) is done:
 
@@ -277,23 +342,48 @@ Assuming [REMOTE_SERVER_SETUP.md](REMOTE_SERVER_SETUP.md) is done:
 export PATH="$HOME/.local/bin:$HOME/.local/opt/scons/usr/bin:$PATH"
 export PYTHONPATH="$HOME/.local/opt/scons/usr/lib/python3/dist-packages:$PYTHONPATH"
 
-# 1) Clone (see §1)
-mkdir -p ~/work && cd ~/work
-git clone git@github.com:hujian404/gem5.git gem5 && cd gem5
+# 1) Clone into the gem5-garnet layout (see §1)
+mkdir -p ~/work/gem5-garnet
+git clone git@github.com:hujian404/gem5.git ~/work/gem5-garnet/gem5
+cd ~/work/gem5-garnet/gem5
 git remote add upstream git@github.com:gem5/gem5.git
 
 # 2) Host toolchain (see §2.2): python3-dev headers + scons + python3-config shim
 
 # 3) Compile the Garnet build (see §3.1)
 scons build/Garnet_standalone/gem5.opt -j$(nproc)
+```
 
-# 4) Run Garnet synthetic traffic (see §5)
-build/Garnet_standalone/gem5.opt -d ~/work/garnet-out \
+### 6.2 Run experiments (binary already built)
+
+```bash
+cd ~/work/gem5-garnet/gem5
+export PATH="$HOME/.local/bin:$HOME/.local/opt/scons/usr/bin:$PATH"
+
+# Run a single pattern (output to results/)
+build/Garnet_standalone/gem5.opt \
+  -d ~/work/gem5-garnet/results/<pattern>_1M_inj0.1 \
   configs/example/garnet_synth_traffic.py \
   --num-cpus=16 --num-dirs=16 --network=garnet --topology=Mesh_XY --mesh-rows=4 \
-  --sim-cycles=1000000 --injectionrate=0.1 --synthetic=uniform_random
-# stats: ~/work/garnet-out/stats.txt
+  --sim-cycles=1000000 --injectionrate=0.1 --synthetic=<pattern>
+
+# Sweep all 8 patterns
+for p in uniform_random tornado bit_complement bit_reverse bit_rotation \
+         neighbor shuffle transpose; do
+  build/Garnet_standalone/gem5.opt \
+    -d ~/work/gem5-garnet/results/${p}_1M_inj0.1 \
+    configs/example/garnet_synth_traffic.py \
+    --num-cpus=16 --num-dirs=16 --network=garnet --topology=Mesh_XY --mesh-rows=4 \
+    --sim-cycles=1000000 --injectionrate=0.1 --synthetic=$p
+done
+
+# View results
+grep 'average_flit_latency' ~/work/gem5-garnet/results/*/stats.txt
 ```
+
+> **Rebuild note.** If you need to rebuild after the repo was moved, delete the
+> stale scons cache first: `rm build/Garnet_standalone/.sconsign.dblite`, then
+> re-run `scons build/Garnet_standalone/gem5.opt -j$(nproc)`.
 
 ---
 
