@@ -5,6 +5,18 @@ the reference host. The build is covered in
 [BUILD_AND_RUN_GEM5.md](BUILD_AND_RUN_GEM5.md); host/SSH setup in
 [REMOTE_SERVER_SETUP.md](REMOTE_SERVER_SETUP.md).
 
+Current source is v26.0.0.0. See
+[UPSTREAM_SYNC_2026-10-22.md](UPSTREAM_SYNC_2026-10-22.md) for the dated
+rebuild and new validation results. Section 3 below preserves the original
+v25 measurements; they must not be presented as results from v26.
+
+**Timing correction:** `--sim-cycles` is compared with `curTick()` in
+`src/cpu/testers/garnet_synthetic_traffic/GarnetSyntheticTraffic.cc`.
+`1000000` is one million ticks: **1,000 tester cycles and 2,000 Ruby cycles**
+at the defaults (1 GHz system/tester, 2 GHz Ruby, 1 THz tick frequency).
+The old `*_1M_inj0.1` directory names are historical labels. Use
+`500000000` for about one million Ruby cycles at 2 GHz.
+
 > **No passwords, private keys, host IPs, or other secrets are included.**
 > Replace every `<placeholder>` with your own value.
 
@@ -25,13 +37,13 @@ The Garnet synthetic-traffic config must be run with the **single-protocol**
 cd ~/work/gem5-garnet/gem5
 export PATH="$HOME/.local/bin:$HOME/.local/opt/scons/usr/bin:$PATH"
 build/Garnet_standalone/gem5.opt \
-  -d ~/work/gem5-garnet/results/uniform_random_1M_inj0.1 \
+  -d ~/work/gem5-garnet/results/v26-experiments/uniform_random_1M_ticks_inj0.1 \
   configs/example/garnet_synth_traffic.py \
   --num-cpus=16 --num-dirs=16 \
   --network=garnet --topology=Mesh_XY --mesh-rows=4 \
   --sim-cycles=1000000 --injectionrate=0.1 \
   --synthetic=uniform_random
-# stats → ~/work/gem5-garnet/results/uniform_random_1M_inj0.1/stats.txt
+# stats → ~/work/gem5-garnet/results/v26-experiments/uniform_random_1M_ticks_inj0.1/stats.txt
 ```
 
 > **Topology name.** In gem5 v25 the mesh topology module is `Mesh_XY.py`
@@ -42,17 +54,17 @@ build/Garnet_standalone/gem5.opt \
 > `MeshDirCorners_XY`, `CustomMesh`, `Crossbar`, `CrossbarGarnet`, `Pt2Pt`,
 > `Cluster`).
 
-> **Output discipline.** Always use `-d ~/work/gem5-garnet/results/<name>` to
+> **Output discipline.** Always use `-d ~/work/gem5-garnet/results/v26-experiments/<name>` to
 > keep all run outputs under `results/`. Never omit `-d` — that would write to
 > `m5out/` inside the source tree and clutter the repo. The naming convention
-> is `<pattern>_<cycles>cyc_inj<rate>` (e.g. `tornado_1M_inj0.1`).
+> is `<pattern>_<threshold>ticks_inj<rate>` (e.g. `tornado_1M_ticks_inj0.1`).
 
 ### 1.1 Single smoke test
 
 ```bash
 cd ~/work/gem5-garnet/gem5
 build/Garnet_standalone/gem5.opt \
-  -d ~/work/gem5-garnet/results/smoke_10k_inj0.1 \
+  -d ~/work/gem5-garnet/results/v26-experiments/smoke_10k_ticks_inj0.1 \
   configs/example/garnet_synth_traffic.py \
   --num-cpus=16 --num-dirs=16 --network=garnet --topology=Mesh_XY --mesh-rows=4 \
   --sim-cycles=10000 --injectionrate=0.1 --synthetic=uniform_random
@@ -65,13 +77,13 @@ cd ~/work/gem5-garnet/gem5
 for pattern in uniform_random tornado bit_complement bit_reverse bit_rotation \
                neighbor shuffle transpose; do
   build/Garnet_standalone/gem5.opt \
-    -d ~/work/gem5-garnet/results/${pattern}_1M_inj0.1 \
+    -d ~/work/gem5-garnet/results/v26-experiments/${pattern}_1M_ticks_inj0.1 \
     configs/example/garnet_synth_traffic.py \
     --num-cpus=16 --num-dirs=16 --network=garnet --topology=Mesh_XY --mesh-rows=4 \
     --sim-cycles=1000000 --injectionrate=0.1 --synthetic=$pattern
 done
 # view all results
-grep 'average_flit_latency' ~/work/gem5-garnet/results/*/stats.txt
+grep 'average_flit_latency' ~/work/gem5-garnet/results/v26-experiments/*/stats.txt
 ```
 
 Statistics are written to `<outdir>/stats.txt` (use `-d <outdir>`); the run
@@ -85,7 +97,7 @@ also prints `info: Garnet version 3.0` and exits with
 The Garnet on-chip network model (`src/mem/ruby/network/garnet/`) is a
 flit-level wormhole-router NoC. The synthetic-traffic config instantiates
 `GarnetSyntheticTraffic` testers attached to a Ruby/Garnet mesh and injects a
-chosen traffic pattern for `--sim-cycles` cycles. It exercises:
+chosen traffic pattern until the `--sim-cycles` tick threshold. It exercises:
 
 | Component | File | Role |
 |-----------|------|------|
@@ -100,13 +112,14 @@ chosen traffic pattern for `--sim-cycles` cycles. It exercises:
 
 ---
 
-## 3. Captured results (reference host)
+## 3. Historical v25 results (reference host)
 
 Configuration: `build/Garnet_standalone/gem5.opt` (gem5 25.1.0.1, stable @
 `a9b193c59b`), 16-node 4×4 `Mesh_XY`, `--network=garnet`,
-`--sim-cycles=1000000`, `--injectionrate=0.1`. Ruby clock = 1 GHz
-(`system.clk_domain.clock = 1000` ticks), global frequency 1 THz, so
-**1 Ruby cycle = 1000 ticks**. Each run ~0.5 s of host time.
+`--sim-cycles=1000000`, `--injectionrate=0.1`. The saved `config.ini` has
+`system.clk_domain.clock = 1000` ticks (1 GHz tester) and
+`system.ruby.clk_domain.clock = 500` ticks (2 GHz Ruby). Global frequency
+is 1 THz, so **1 Ruby cycle = 500 ticks**. Each run ~0.5 s of host time.
 
 Simulation summary (uniform_random run):
 
@@ -120,36 +133,43 @@ hostTickRate      1923084         # ticks/s
 hostMemory        736588          # bytes
 ```
 
-Garnet network statistics across three traffic patterns (ticks; cycles in
-parentheses, = ticks/1000):
+Garnet network statistics across three traffic patterns (ticks; Ruby cycles
+in parentheses, = ticks/500; corrected from the original document):
 
 | Traffic pattern | avg_flit_latency | avg_flit_network_latency | avg_flit_queueing_latency | avg_packet_latency | flits injected | flits received |
 |-----------------|------------------|--------------------------|---------------------------|--------------------|----------------|----------------|
-| `uniform_random` | 6042.10 (6.04) | 5042.10 (5.04) | 1000 (1.00) | 6023.29 (6.02) | 3740 | 3729 |
-| `tornado`        | 4814.18 (4.81) | 3814.18 (3.81) | 1000 (1.00) | 4821.79 (4.82) | 3674 | 3654 |
-| `bit_complement` | 7565.30 (7.57) | 6565.30 (6.57) | 1000 (1.00) | 7529.69 (7.53) | 3674 | 3637 |
+| `uniform_random` | 6042.10 (12.08) | 5042.10 (10.08) | 1000 (2.00) | 6023.29 (12.05) | 3740 | 3729 |
+| `tornado`        | 4814.18 (9.63) | 3814.18 (7.63) | 1000 (2.00) | 4821.79 (9.64) | 3674 | 3654 |
+| `bit_complement` | 7565.30 (15.13) | 6565.30 (13.13) | 1000 (2.00) | 7529.69 (15.06) | 3674 | 3637 |
 
 All three runs exited with code 0 and the line
 `Exiting @ tick 1000000 because Network Tester completed simCycles`.
 
 ### 3.1 Interpretation
 
-- `average_flit_network_latency` ≈ hop count × (router pipeline + link)
-  latency. For a 4×4 mesh with XY routing, the average hop distance is ~2.7;
-  with a default 4-stage router pipeline + 1-cycle link this gives ~5 cycles
-  for `uniform_random` — matching the observed 5042 ticks (5.04 cycles).
-- `average_flit_queueing_latency` is 1 cycle (1000 ticks) across all patterns
-  at this low injection rate (0.1) — little contention.
-- `bit_complement` has the longest paths / highest contention → highest
-  latency; `tornado` (minimal, low-contention) → lowest. This is the expected
-  qualitative ordering for a Garnet mesh.
+- Default router latency is 1 cycle and link latency is 1 cycle; the old
+  four-stage-router explanation was incorrect. End-to-end latency includes
+  endpoint and buffering effects and should be interpreted from the actual
+  configuration, rather than a hop-count estimate alone.
+- `average_flit_queueing_latency` is 1 tester cycle (2 Ruby cycles, 1000
+  ticks) across all patterns
+  in these short runs. This alone does not establish absence of congestion.
+- `bit_complement` has the highest latency of these three patterns;
+  `tornado` is lowest in these measurements. A short run at one
+  injection rate does not establish a general ordering or saturation point.
+
+Injected minus received flits are still outstanding at the stop tick;
+without draining the network, this difference is not evidence of packet
+loss. The commands use routing algorithm 0 (weight-based table routing).
+Use `--routing-algorithm=1` to select explicit XY coordinate routing.
 
 ### 3.2 Verification run (smoke test)
 
-A short `--sim-cycles=10000` run also completes with exit code 0 and emits
+A short `--sim-cycles=10000` (10,000 ticks) run completes with exit code 0
+and emits
 `info: Garnet version 3.0`, confirming the binary and config are functional;
-flit counts are small at that duration, so the 1,000,000-cycle runs above are
-used for the reported statistics.
+flit counts are small at that duration. The historical 1,000,000-tick runs
+above are also short functional checks, not steady-state measurements.
 
 ---
 
@@ -184,7 +204,9 @@ the single-protocol build.
 
 **Symptom.** `ModuleNotFoundError: No module named 'topologies.Mesh'`.
 
-**Root cause.** gem5 v25 renamed `Mesh.py` → `Mesh_XY.py` (class `Mesh_XY`).
+**Root cause.** This checkout provides `Mesh_XY.py` (class `Mesh_XY`), rather
+than a `topologies.Mesh` module. The failure does not establish which release
+originally introduced the naming change.
 
 **Fix.** Use `--topology=Mesh_XY` (see §1 note).
 
@@ -215,7 +237,7 @@ correct build target / command-line option.
 │   ├── SConstruct                              #   build entry (uses PYTHON_CONFIG)
 │   ├── build_opts/Garnet_standalone            #   single-protocol preset (for garnet)
 │   ├── build_opts/ALL                          #   comprehensive preset (all ISAs + protocols)
-│   ├── build/Garnet_standalone/gem5.opt        #   built binary (~823 MB, gem5 25.1.0.1)
+│   ├── build/Garnet_standalone/gem5.opt        #   binary (rebuild for the current source revision)
 │   ├── build/ALL/gem5.opt                      #   comprehensive binary (optional, ~11 GB)
 │   ├── configs/example/garnet_synth_traffic.py #   Garnet synthetic-traffic config
 │   ├── configs/topologies/Mesh_XY.py           #   XY-routing mesh topology

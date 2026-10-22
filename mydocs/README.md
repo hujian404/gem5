@@ -19,6 +19,7 @@ if you hit the same errors on a different machine.
 | [REMOTE_SERVER_SETUP.md](REMOTE_SERVER_SETUP.md) | Host & toolchain assumptions, SSH access (local → remote, remote → GitHub) |
 | [BUILD_AND_RUN_GEM5.md](BUILD_AND_RUN_GEM5.md) | Clone, host-environment workarounds, compile `gem5.opt`, run Garnet |
 | [TEST_RESULTS.md](TEST_RESULTS.md) | How to run the Garnet synthetic-traffic test, expected results |
+| [UPSTREAM_SYNC_2026-10-22.md](UPSTREAM_SYNC_2026-10-22.md) | v26.0 upstream merge, compatibility changes, validation and update procedure |
 
 ## Recommended reading order
 
@@ -37,10 +38,11 @@ branch (see the baseline commit recorded in
 build-system changes were needed** to compile gem5 on the reference host — the
 build succeeds using host-environment workarounds only.
 
-Consequently there are **no `build:` / `test:` commits** in this fork's
-history relative to the upstream baseline; the only repository-level addition
-is this `mydocs/` documentation (a single `docs:` commit). This keeps the fork
-fast-forwardable with upstream and free of host-specific intrusions.
+The current upstream baseline is **v26.0.0.0**, commit
+`fed0e07e930fecf1e73dce94dd44e69a5bf70c46`, merged on 2026-10-22.
+The fork's changes relative to that upstream tree are confined to `mydocs/`.
+Normal merges preserve the fork's existing documentation commits; updating
+this fork does not require rebasing or force-pushing shared history.
 
 The workarounds needed to build (`python3-dev` headers, `scons`, the
 `python3-config` shim, `~/.bashrc` env exports) are environment-level and live
@@ -53,9 +55,23 @@ All gem5 source and Garnet experiment files are consolidated under
 `~/work/gem5-garnet/`:
 
 - **Source**: `~/work/gem5-garnet/gem5/` (gem5 checkout, branch `stable`)
-- **Binary**: `~/work/gem5-garnet/gem5/build/Garnet_standalone/gem5.opt` (~823 MB, gem5 25.1.0.1)
-- **Results**: `~/work/gem5-garnet/results/<pattern>_<cycles>cyc_inj<rate>/`
+- **Binary**: `~/work/gem5-garnet/gem5/build/Garnet_standalone/gem5.opt`
+  (rebuild after updating; see the dated validation report)
+- **Results**: `~/work/gem5-garnet/results/<pattern>_<threshold>ticks_inj<rate>/`
 - **Build logs**: `~/work/gem5-garnet/build-log.txt` (Garnet_standalone) and `~/work/gem5-garnet/logs/gem5-build-all.log` (ALL)
+- **v26 validation**: `~/work/gem5-garnet/logs/v26-garnet-build.log` and
+  `~/work/gem5-garnet/results/v26-sync-20261022/`
+
+The existing `build/ALL/gem5.opt` and old result directories are historical
+artifacts until explicitly rebuilt or rerun. Updating Git does not update
+previously compiled binaries.
+
+> **Timing correction.** Despite its name, `--sim-cycles` is compared with
+> `curTick()` in the upstream synthetic tester. With the default 1 GHz tester
+> clock, 2 GHz Ruby clock and 1 THz tick frequency, `--sim-cycles=1000000`
+> means 1 microsecond: 1,000 tester cycles and 2,000 Ruby cycles. Use
+> `500000000` for about 1,000,000 Ruby cycles at the default Ruby clock.
+> Historical `*_1M_inj0.1` directories retain their original names.
 
 See [REMOTE_SERVER_SETUP.md §6](REMOTE_SERVER_SETUP.md) for the full directory
 tree, and [BUILD_AND_RUN_GEM5.md §1.1](BUILD_AND_RUN_GEM5.md) for the layout

@@ -4,6 +4,11 @@ Step-by-step: clone the gem5 fork, install the user-space build toolchain
 (no sudo), compile `gem5.opt`, and run a Garnet on-chip-network configuration
 on a host prepared per [REMOTE_SERVER_SETUP.md](REMOTE_SERVER_SETUP.md).
 
+Current source baseline: gem5 **26.0.0.0**, upstream stable
+`fed0e07e930fecf1e73dce94dd44e69a5bf70c46` (2026-10-22 sync).
+Read [the upgrade report](UPSTREAM_SYNC_2026-10-22.md) before reusing old
+binaries or interpreting historical result directory names.
+
 > **No passwords, private keys, host IPs, or other secrets are included.**
 > Replace every `<placeholder>` with your own value.
 
@@ -23,8 +28,7 @@ mkdir -p ~/work/gem5-garnet
 git clone git@github.com:hujian404/gem5.git ~/work/gem5-garnet/gem5
 cd ~/work/gem5-garnet/gem5
 
-# add upstream as read-only remote (the GitHub SSH key has read access to
-# public upstreams even though it can only push to your fork)
+# add upstream for fetching; push changes only to origin
 git remote add upstream git@github.com:gem5/gem5.git
 git fetch upstream
 git checkout stable
@@ -38,7 +42,7 @@ After clone + build + run, the `~/work/gem5-garnet/` root looks like:
 ```
 ~/work/gem5-garnet/                              # unified experiment root
 ├── gem5/                                        # gem5 source checkout (branch stable)
-│   ├── build/Garnet_standalone/gem5.opt        #   built binary (~823 MB, gem5 25.1.0.1)
+│   ├── build/Garnet_standalone/gem5.opt        #   binary (rebuild for the current source revision)
 │   ├── build/ALL/gem5.opt                      #   comprehensive binary (optional, ~11 GB)
 │   ├── configs/example/garnet_synth_traffic.py #   Garnet synthetic-traffic config
 │   ├── configs/topologies/Mesh_XY.py           #   XY-routing mesh topology
@@ -56,15 +60,20 @@ After clone + build + run, the `~/work/gem5-garnet/` root looks like:
 └── build-log.pid
 ```
 
-> **Run outputs always go to `~/work/gem5-garnet/results/<name>/`** via the
+> **Run outputs always go to `~/work/gem5-garnet/results/v26-experiments/<name>/`** via the
 > `-d` flag. Never let gem5 write to its default `m5out/` inside the source
 > tree — this keeps the source directory clean and all results in one place.
-> The `results/` naming convention is `<pattern>_<cycles>cyc_inj<rate>`
-> (e.g. `uniform_random_1M_inj0.1`).
+> The `results/` naming convention is `<pattern>_<threshold>ticks_inj<rate>`
+> (e.g. `uniform_random_1M_ticks_inj0.1`).
 
 ---
 
 ## 2. Build fixes
+
+For v26, C++20 and Python 3.10+ are required. The reference toolchain is
+GCC 11.4.0, Python 3.10.12, and SCons 4.0.1. Configure checks also verify
+zlib and GNU m4; optional libraries can disable features when absent.
+See upstream [release notes](../RELEASE-NOTES.md) for broader API changes.
 
 ### 2.1 Already applied in this fork (no action needed)
 
@@ -168,7 +177,7 @@ chmod +x ~/.local/bin/python3-config
 #### 2.2.4 Persist the environment in `~/.bashrc`
 
 ```bash
-# append (idempotent guarded block)
+# Append once; this command itself is not idempotent.
 cat >> ~/.bashrc <<'EOF'
 
 # === gem5 host env (no sudo) ===
@@ -181,8 +190,8 @@ EOF
 ```
 
 For a non-interactive SSH session (`ssh host 'bash -s'`), `~/.bashrc` is **not**
-sourced automatically — set `PATH`/`PYTHONPATH` explicitly at the top of such
-scripts, or run `source ~/.bashrc` first.
+sourced automatically, and interactive guards can stop it early. Set
+`PATH`/`PYTHONPATH` explicitly at the top of such scripts.
 
 #### 2.2.5 Verify the toolchain
 
@@ -221,7 +230,7 @@ scons build/Garnet_standalone/gem5.opt -j$(nproc)
 protocol), so the SLICC controllers (`L1Cache_Controller`, etc.) are available
 at top level and no `--protocol` flag is needed at run time.
 
-**Build details captured on the reference host (112 cores, gcc 11.4.0):**
+**Historical v25 build details (not the current v26 rebuild):**
 
 | Item | Value |
 |------|-------|
@@ -245,7 +254,7 @@ code 0.
 ```bash
 ls -la build/Garnet_standalone/gem5.opt
 build/Garnet_standalone/gem5.opt --build-info | grep -i version
-# → gem5 version 25.1.0.1
+# → gem5 version 26.0.0.0 after rebuilding the current baseline
 ```
 
 > **Note on scons cache after moving the repo.** If you move the gem5 checkout
@@ -292,23 +301,23 @@ disables HDF5 support, which is fine for Garnet runs).
 cd ~/work/gem5-garnet/gem5
 export PATH="$HOME/.local/bin:$HOME/.local/opt/scons/usr/bin:$PATH"
 build/Garnet_standalone/gem5.opt \
-  -d ~/work/gem5-garnet/results/uniform_random_1M_inj0.1 \
+  -d ~/work/gem5-garnet/results/v26-experiments/uniform_random_1M_ticks_inj0.1 \
   configs/example/garnet_synth_traffic.py \
   --num-cpus=16 --num-dirs=16 \
   --network=garnet --topology=Mesh_XY --mesh-rows=4 \
   --sim-cycles=1000000 --injectionrate=0.1 \
   --synthetic=uniform_random
-# stats → ~/work/gem5-garnet/results/uniform_random_1M_inj0.1/stats.txt
+# stats → ~/work/gem5-garnet/results/v26-experiments/uniform_random_1M_ticks_inj0.1/stats.txt
 ```
 
-> **Topology name.** In gem5 v25 the mesh topology is `Mesh_XY` (file
+> **Topology name.** The mesh topology is `Mesh_XY` (file
 > `configs/topologies/Mesh_XY.py`, class `Mesh_XY`), not the legacy `Mesh`.
 > See [TEST_RESULTS.md §4.2](TEST_RESULTS.md).
 
-> **Output discipline.** Always use `-d ~/work/gem5-garnet/results/<name>` to
+> **Output discipline.** Always use `-d ~/work/gem5-garnet/results/v26-experiments/<name>` to
 > keep all run outputs under `results/`. Never omit `-d` — that would write to
 > `m5out/` inside the source tree and clutter the repo. The naming convention
-> is `<pattern>_<cycles>cyc_inj<rate>` (e.g. `tornado_1M_inj0.1`).
+> is `<pattern>_<threshold>ticks_inj<rate>` (e.g. `tornado_1M_ticks_inj0.1`).
 
 Key options (see `configs/example/garnet_synth_traffic.py`):
 
@@ -316,11 +325,29 @@ Key options (see `configs/example/garnet_synth_traffic.py`):
 |--------|---------|---------|
 | `--synthetic` | `uniform_random` | traffic pattern: uniform_random, tornado, bit_complement, bit_reverse, bit_rotation, neighbor, shuffle, transpose |
 | `--injectionrate` | `0.1` | packets/cycle/node (0–1) |
-| `--sim-cycles` | `1000` | number of simulation cycles (use ≥ 1,000,000 for stable stats) |
+| `--sim-cycles` | `1000` | tick threshold in the current tester; see timing note below |
 | `--num-cpus` / `--num-dirs` | — | number of nodes (keep equal for a square mesh) |
-| `--network` | `garnet` | Ruby network model |
-| `--topology` | `Mesh_XY` | network topology (must match a `configs/topologies/<name>.py` class) |
+| `--network` | `simple` | explicitly pass `garnet` for these tests |
+| `--topology` | `Crossbar` | explicitly pass `Mesh_XY` for these tests |
 | `--mesh-rows` | — | rows of the mesh (e.g. 4 for 16 nodes) |
+
+Despite the option's name/help, `GarnetSyntheticTraffic::tick()` compares
+`curTick() >= simCycles`. At 1 THz ticks, the default 1 GHz tester clock
+and 2 GHz Ruby clock, the example above runs for 1,000,000 ticks
+(1 microsecond): 1,000 tester cycles and 2,000 Ruby cycles. To request about
+one million Ruby cycles, use `--sim-cycles=500000000`. Inspect
+`simTicks`, `simFreq`, and `config.ini` in each output instead of inferring
+duration from a directory name. A single short run is not a convergence
+study.
+
+The default `--routing-algorithm=0` selects weight-based table routing;
+`Mesh_XY` supplies topology weights. Pass `--routing-algorithm=1` explicitly
+to exercise the coordinate-based XY implementation. Default router and link
+latencies are each 1 cycle, not a fixed four-stage router pipeline.
+
+Historical `*_1M_inj0.1` outputs are preserved. For new work, use a dated
+directory such as `results/v26-sync-20261022/` and include `ticks` or
+`ruby_cycles` in the run name to make units explicit.
 
 The run prints `info: Garnet version 3.0`, exits with
 `Exiting @ tick <N> because Network Tester completed simCycles`, and writes
@@ -362,7 +389,7 @@ export PATH="$HOME/.local/bin:$HOME/.local/opt/scons/usr/bin:$PATH"
 
 # Run a single pattern (output to results/)
 build/Garnet_standalone/gem5.opt \
-  -d ~/work/gem5-garnet/results/<pattern>_1M_inj0.1 \
+  -d ~/work/gem5-garnet/results/v26-experiments/<pattern>_1M_ticks_inj0.1 \
   configs/example/garnet_synth_traffic.py \
   --num-cpus=16 --num-dirs=16 --network=garnet --topology=Mesh_XY --mesh-rows=4 \
   --sim-cycles=1000000 --injectionrate=0.1 --synthetic=<pattern>
@@ -371,14 +398,14 @@ build/Garnet_standalone/gem5.opt \
 for p in uniform_random tornado bit_complement bit_reverse bit_rotation \
          neighbor shuffle transpose; do
   build/Garnet_standalone/gem5.opt \
-    -d ~/work/gem5-garnet/results/${p}_1M_inj0.1 \
+    -d ~/work/gem5-garnet/results/v26-experiments/${p}_1M_ticks_inj0.1 \
     configs/example/garnet_synth_traffic.py \
     --num-cpus=16 --num-dirs=16 --network=garnet --topology=Mesh_XY --mesh-rows=4 \
     --sim-cycles=1000000 --injectionrate=0.1 --synthetic=$p
 done
 
 # View results
-grep 'average_flit_latency' ~/work/gem5-garnet/results/*/stats.txt
+grep 'average_flit_latency' ~/work/gem5-garnet/results/v26-experiments/*/stats.txt
 ```
 
 > **Rebuild note.** If you need to rebuild after the repo was moved, delete the

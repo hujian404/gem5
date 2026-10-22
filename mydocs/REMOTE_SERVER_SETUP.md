@@ -141,6 +141,21 @@ If all behave as above, the host is ready. Continue with
 
 ## 5. Baseline commit
 
+### Current baseline (2026-10-22)
+
+Upstream `stable` is now v26.0.0.0 at
+`fed0e07e930fecf1e73dce94dd44e69a5bf70c46`. It was merged into the fork
+with merge commit `bc51bc6009af1e3d1271c1ccffbe8bf94947754c`, retaining
+the original documentation history. The reference host's GCC 11.4.0,
+Python 3.10.12 and SCons 4.0.1 are used for this rebuild. v26 requires
+C++20 and Python 3.10+.
+
+See [the sync report](UPSTREAM_SYNC_2026-10-22.md) for validation logs,
+compatibility notes, and the safe update procedure. `upstream` is used only
+for fetching; all pushes target `origin`.
+
+### Original baseline (historical)
+
 The fork's baseline (the commit all experiments branch from) is the tip of
 upstream `gem5/gem5` `stable` at the time of forking:
 
@@ -152,8 +167,10 @@ remote:  origin  = git@github.com:hujian404/gem5.git   (the fork)
          upstream = git@github.com:gem5/gem5.git        (read-only)
 ```
 
-Recorded here for reproducibility; verify on a fresh clone with
-`git log -1 --oneline`.
+Recorded here for reproducing the original v25 experiments. To verify the
+current upstream baseline, fetch upstream and use
+`git merge-base --is-ancestor fed0e07e930fecf1e73dce94dd44e69a5bf70c46 HEAD`.
+`git log -1` shows the fork's latest merge/documentation commit instead.
 
 ---
 
@@ -165,16 +182,16 @@ single `~/work/gem5-garnet/` root:
 ```
 ~/work/gem5-garnet/                              # unified experiment root
 ├── gem5/                                        # gem5 source (branch stable)
-│   ├── build/Garnet_standalone/gem5.opt        #   built binary (~823 MB, gem5 25.1.0.1)
+│   ├── build/Garnet_standalone/gem5.opt        #   binary (rebuild for the current source revision)
 │   ├── build/ALL/gem5.opt                      #   comprehensive binary (~11 GB, optional)
 │   ├── configs/example/garnet_synth_traffic.py
 │   ├── src/mem/ruby/network/garnet/
 │   └── mydocs/                                 #   this documentation
 ├── results/                                     # experiment run outputs
-│   ├── uniform_random_1M_inj0.1/               #   1M cycles, inj=0.1
+│   ├── uniform_random_1M_inj0.1/               #   historical: 1M ticks, inj=0.1
 │   ├── tornado_1M_inj0.1/
 │   ├── bit_complement_1M_inj0.1/
-│   └── smoke_10k_inj0.1/                       #   10K cycles smoke test
+│   └── smoke_10k_inj0.1/                       #   historical: 10K ticks smoke test
 ├── logs/                                        # build logs
 │   ├── gem5-build-all.log                      #   ALL build log
 │   └── gem5-build-all.pid
